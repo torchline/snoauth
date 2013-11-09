@@ -1,0 +1,33 @@
+{
+    "name" : "users",
+    "table" : "Users",
+    "resource" : {
+        "id" : {
+            "field" : "ID",
+            "type" : "int",
+            "access" : {
+                "read" : {
+                    "default" : true
+                },
+                "order" : {},
+                "condition" : {}
+            }
+        },
+        "username" : {
+            "field" : "Username",
+            "type" : "string",
+            "access" : {
+                "create" : {
+                    "required" : true,
+                    "filter" : ""
+                },
+                "read" : {
+                    "default" : true
+                },
+                "update" : {},
+                "order" : {},
+                "condition" : {}
+            }
+        }
+    }
+}

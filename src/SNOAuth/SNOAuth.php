@@ -3,13 +3,16 @@
  * Created by Brad Walker on 5/15/13 at 7:04 PM
 */
 
-require_once('SNOAuth2DelegateInterface.php');
-require_once('SNOAuth2Config.php');
-require_once('OAuth2Error.php');
-require_once('OAuth2AccessTokenObject.php');
-require_once('OAuth2GrantType.php');
+namespace SNOAuth;
 
+require_once(dirname(__FILE__) . '/Config.php');
 
+require_once(dirname(__FILE__) . '/Result/Error.php');
+require_once(dirname(__FILE__) . '/Result/Token.php');
+
+require_once(dirname(__FILE__) . '/Type/Grant.php');
+require_once(dirname(__FILE__) . '/Type/Response.php');
+require_once(dirname(__FILE__) . '/Type/Token.php');
 
 if( !function_exists('apache_request_headers') ) {
 	function apache_request_headers() {
@@ -33,28 +36,39 @@ if( !function_exists('apache_request_headers') ) {
 	}
 }
 
-
-
 /**
  * Conforms to OAuth 2.0 Draft 31
  * 
- * @property SNOAuth2Config $config
- * 
- * Class OAuth2_31
+ * Class SNOAuth
  */
-class SNOAuth2 {
+class SNOAuth {
 
-	const HASH_SALT = 'axv87twregl2rblkjp';
-	
+	/** @var Config */
 	protected $config;
+
+	/** @var array */
+	protected $parameters;
 	
+
 	/**
-	 * @param SNOAuth2Config $config
+	 * @param Config $config
+	 * @param array $parameters
+	 * @throws \Exception
 	 */
-	public function __construct(SNOAuth2Config $config) {
+	public function __construct($config = NULL, $parameters = NULL) {
+		if (!isset($config)) {
+			$config = Config::fromFile();
+
+			if (!isset($config)) {
+				throw new \Exception("No config file or object found for snoauth.", 500);
+			}
+		}
 		$this->config = $config;
-		
-		return $this;
+
+		if (!isset($parameters)) {
+			$parameters = $_GET; // TODO: or whatever
+		}
+		$this->parameters = $parameters;
 	}
 
 
@@ -66,13 +80,15 @@ class SNOAuth2 {
 	 * @return bool
 	 */
 	public function addClient($clientID, $clientSecret, $redirectURI) {
-		$stmt = $this->config->pdo->prepare(sprintf(
-			'INSERT INTO %s (%s, %s, %s) VALUES (:id, :secret, :redirectURI)',
+		$pdo = $this->config->getPDO();
+		
+		$sql = sprintf('INSERT INTO %s (%s, %s, %s) VALUES (:id, :secret, :redirectURI)',
 			$this->config->clientsTable['name'],
 			$this->config->clientsTable['fields']['id'],
 			$this->config->clientsTable['fields']['secret'],
 			$this->config->clientsTable['fields']['redirectURI']
-		));
+		);
+		$stmt = $pdo->prepare($sql);
 		
 		$success = $stmt->execute(array(
 			':id' => $clientID,
@@ -81,36 +97,6 @@ class SNOAuth2 {
 		));
 		
 		return $success;
-	}
-	 
-	/**
-	 * @param array $responseArray
-	 */
-	protected function outputResponse($responseArray) {
-		if (!headers_sent() && php_sapi_name() !== 'cli') {
-			header( "{$_SERVER['SERVER_PROTOCOL']} 200 OK", TRUE, 200);
-			header('Content-Type: application/json');
-			header('Cache-Control: no-store');
-			header('Pragma: no-cache');
-		}
-		
-		die(json_encode($responseArray));
-	}
-
-	/**
-	 * @param OAuth2Error $error
-	 */
-	protected function outputError(OAuth2Error $error) {
-		$response = $error->getResponse($this->config->showErrorDescriptions, $this->config->showErrorURIs);
-		$this->outputResponse($response);
-	}
-
-	/**
-	 * @param OAuth2AccessTokenObject $accessToken
-	 */
-	protected function outputAccessTokenObject(OAuth2AccessTokenObject $accessToken) {
-		$response = $accessToken->getResponse();
-		$this->outputResponse($response);
 	}
 
 	/**
@@ -135,16 +121,11 @@ class SNOAuth2 {
 	 * @return string
 	 */
 	protected function hashSecret($clientSecret, $clientID = NULL) {
-		if ($this->config->delegate && ($this->config->delegate instanceof SNOAuth2DelegateInterface)) {
-			return $this->config->delegate->hashSNOAuth2Secret($clientSecret, $clientID);
-		}
-		else {
-			return hash_hmac('ripemd160', "{$clientSecret}:{$clientID}", self::HASH_SALT);
-		}
+		return hash_hmac('ripemd160', "{$clientSecret}:{$clientID}", $this->config->getHashSalt());
 	}
 	
 	protected function generateAccessToken() {
-		return hash_hmac('ripemd160', uniqid('', TRUE), self::HASH_SALT);
+		return hash_hmac('ripemd160', uniqid('', TRUE), $this->config->getHashSalt());
 	}
 }
 

@@ -3,14 +3,16 @@
  * Created by Brad Walker on 5/15/13 at 7:19 PM
 */
 
-require_once('SNOAuth2.php');
+namespace SNOAuth;
+
+require_once('SNOAuth.php');
 
 /**
  * Conforms to OAuth 2.0 Draft 31
  * 
  * Class SNOAuth2ClientCredentials
  */
-class SNOAuth2_ClientCredentials extends SNOAuth2 {
+class ClientCredentialsGay extends SNOAuth {
 
 	/**
 	 * Outputs new access token response or error response
@@ -24,7 +26,7 @@ class SNOAuth2_ClientCredentials extends SNOAuth2 {
 		);
 		
 		if (!isset($grantType)) {
-			$error = new OAuth2Error(OAuth2Error::INVALID_GRANT, "grant_type was not defined");
+			$error = new Result\Error(Result\Error::INVALID_GRANT);
 			$this->outputError($error);
 		}
 		if ($grantType != OAuth2GrantType::CLIENT_CREDENTIALS) {
@@ -62,11 +64,11 @@ class SNOAuth2_ClientCredentials extends SNOAuth2 {
 
 		if (!isset($accessTokenObject)) {
 			// generate new access token
-			$accessTokenObject = new OAuth2AccessTokenObject(
+			$accessTokenObject = new Token(
 				$this->generateAccessToken(),
 				$clientID,
 				time() + $this->config->accessTokenLifetime,
-				OAuth2AccessTokenObject::TYPE_BEARER,
+				Token::TYPE_BEARER,
 				'',
 				$scope
 			);
@@ -97,7 +99,7 @@ class SNOAuth2_ClientCredentials extends SNOAuth2 {
 	 * @param string $userID
 	 * @param string $scope
 	 * 
-	 * @return OAuth2AccessTokenObject|NULL
+	 * @return Token|NULL
 	 */
 	protected function getExistingAccessTokenObject($clientID, $userID = '', $scope = '') {
 		$stmt = $this->config->pdo->prepare(sprintf(
@@ -153,22 +155,22 @@ class SNOAuth2_ClientCredentials extends SNOAuth2 {
 			return NULL;
 		}
 				
-		return new OAuth2AccessTokenObject(
+		return new Token(
 			$accessToken,
 			$clientID,
 			$expires,
-			OAuth2AccessTokenObject::TYPE_BEARER,
+			Token::TYPE_BEARER,
 			$userID,
 			$scope
 		);
 	}
 		
 	/**
-	 * @param OAuth2AccessTokenObject $accessTokenObject
+	 * @param Token $accessTokenObject
 	 * 
 	 * @return bool
 	 */
-	protected function saveAccessTokenObject(OAuth2AccessTokenObject $accessTokenObject) {
+	protected function saveAccessTokenObject(Token $accessTokenObject) {
 		$stmt = $this->config->pdo->prepare(sprintf(
 			'INSERT INTO %s (%s, %s, %s, %s, %s) VALUES (:clientID, :accessToken, :expires, :userID, :scope)',
 			$this->config->accessTokensTable['name'],
